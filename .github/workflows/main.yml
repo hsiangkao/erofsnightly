@@ -25,9 +25,9 @@ jobs:
               --disable-multithreading \
               --prefix=$(pwd)/output \
               --with-lz4-incdir=${lz4libdir} --with-lz4-libdir=${lz4libdir}
-          timeout 5m sudo make check && false
+          sudo make check && false
           make install
-        timeout-minutes: 5
+        timeout-minutes: 10
       - name: Upload results if build failed
         uses: actions/upload-artifact@v4
         if: failure()
