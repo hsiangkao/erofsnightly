@@ -30,7 +30,6 @@ jobs:
         timeout-minutes: 10
       - name: Upload results if build failed
         uses: actions/upload-artifact@v4
-        if: failure()
         with:
           name: results-output
           path: |
