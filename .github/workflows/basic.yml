@@ -28,10 +28,7 @@ jobs:
           git clone https://github.com/erofs/erofs-utils.git -b experimental-tests
           cd erofs-utils
           mkdir output
-          ./autogen.sh && ./configure --enable-debug --enable-werror --enable-fuse --with-selinux --with-libzstd \
-              --disable-multithreading \
-              --prefix=$(pwd)/output \
-              --with-lz4-incdir=${lz4libdir} --with-lz4-libdir=${lz4libdir}
+          ./autogen.sh && ./configure
           sudo make check
           make install
         timeout-minutes: 10
