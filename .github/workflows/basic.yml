@@ -27,6 +27,13 @@ jobs:
               --with-lz4-incdir=${lz4libdir} --with-lz4-libdir=${lz4libdir}
           sudo make check
           make install
+      - name: Check if erofs is enabled in kconfig
+        run: |
+          if grep -q "CONFIG_EROFS_FS=y" .config; then
+            echo "erofs is enabled in kconfig"
+          else
+            echo "erofs is not enabled in kconfig"
+          fi
         timeout-minutes: 10
       - name: Upload results if build failed
         uses: actions/upload-artifact@v4
