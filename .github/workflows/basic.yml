@@ -18,7 +18,7 @@ jobs:
           sudo apt-get install -y libfuse-dev libselinux1-dev libzstd-dev libfuse2 attr xattr
           curl -L https://github.com/lz4/lz4/archive/refs/tags/v1.9.4.tar.gz | tar -zxv
           make BUILD_SHARED=no -C lz4-1.9.4 && lz4libdir=$(pwd)/lz4-1.9.4/lib
-          git clone https://github.com/Kyrie112/erofs-utils.git
+          git clone git://git.kernel.org/pub/scm/linux/kernel/git/xiang/erofs-utils.git -b experimental-tests
           cd erofs-utils
           mkdir output
           ./autogen.sh && ./configure --enable-debug --enable-werror --enable-fuse --with-selinux --with-libzstd \
@@ -30,6 +30,7 @@ jobs:
         timeout-minutes: 10
       - name: Upload results if build failed
         uses: actions/upload-artifact@v4
+        if: failure()
         with:
           name: results-output
           path: |
