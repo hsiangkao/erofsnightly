@@ -7,47 +7,9 @@ defaults:
   run:
     shell: bash
 
-jobs:
-  build-kernel:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Clone latest tree
-        run: |
-          sudo rm -rf erofs; mkdir -p erofs
-          git clone git://git.kernel.org/pub/scm/linux/kernel/git/xiang/erofs.git -b dev-test erofs
-      - name: Set up kernel tree
-        run: |
-          sudo apt -qq update
-          sudo apt-get install -y libssl-dev libelf-dev flex bison dwarves
-          cd erofs
-          scripts/kconfig/merge_config.sh -m arch/x86/configs/x86_64_defconfig ../erofs-kernelconfig && \
-            make olddefconfig
-      - name: Get the HEAD commit ID
-        id: get_version_id
-        run: |
-          echo "scm_version=`cd erofs; git rev-parse --verify HEAD | cut -c1-8`" >> $GITHUB_OUTPUT
-          rm -rf erofs/.git       # delete .git to save space
-      - name: Cache bzImage
-        id: cache-bzImage
-        uses: actions/cache@v4
-        with:
-          path: |
-            erofs/arch/x86/boot/bzImage
-          key: bzImage-${{ steps.get_version_id.outputs.scm_version }}
-      - name: Build latest kernel
-        if: steps.cache-bzImage.outputs.cache-hit != 'true'
-        run: |
-          cd erofs && make -j32
-      - name: Upload bzImage
-        uses: actions/upload-artifact@v4
-        with:
-          name: erofs-bzImage
-          path: |
-            erofs/arch/x86/boot/bzImage
-            
+jobs:       
   build-erofs-utils:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - name: Build erofs-utils
@@ -80,7 +42,7 @@ jobs:
             erofs-utils/output
 
   run-stress-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: build-erofs-utils
     steps:
       - name: Download erofs-utils prebuilts
