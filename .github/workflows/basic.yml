@@ -17,7 +17,8 @@ jobs:
           if grep -q "CONFIG_EROFS_FS=y" .config; then
             echo "erofs is enabled in kconfig"
           else
-            echo "erofs is not enabled in kconfig"
+            echo 'CONFIG_EROFS_FS=y' >> .config
+            make olddefconfig
           fi
       - name: Build erofs-utils
         run: |
