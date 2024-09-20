@@ -1,15 +1,1 @@
-#!/bin/bash
 
-mem="768M"
-args='-zlz4hc,12'
-
-curl https://cdn.kernel.org/pub/linux/kernel/v5.x/linux-5.4.140.tar.gz | tar -zx
-bin/mkfs.erofs $args linux.erofs.img linux-5.4.140 && rm -rf linux-5.4.140
-bin/fsck.erofs linux.erofs.img || exit 1
-qemu-system-x86_64 -nographic -serial mon:stdio -m $mem -smp 4 \
-	--accel tcg,thread=multi -kernel $1 \
-	-drive file=$2,index=0,readonly,media=cdrom \
-	-hdb linux.erofs.img -hdc overlay.ext4.img \
-	-net nic,model=e1000 -net user \
-	-append "net.ifnames=0 root=/dev/sr0 console=ttyS0" \
-	-exec basic_test.sh
