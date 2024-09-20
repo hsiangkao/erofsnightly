@@ -1,13 +1,17 @@
-name: basictest
+name: basicsmoking
 
 on:
+  schedule:
+    # run at CST 10:00 and 22:00
+    - cron:  '0 2,14 * * *'
+  # Allows to run this workflow manually from the Actions tab
   workflow_dispatch:
- 
+
 defaults:
   run:
     shell: bash
 
-jobs:     
+jobs:
   build-kernel:
     runs-on: ubuntu-22.04
     steps:
@@ -45,43 +49,25 @@ jobs:
           name: erofs-bzImage
           path: |
             erofs/arch/x86/boot/bzImage
-  
+
   build-erofs-utils:
     runs-on: ubuntu-22.04
-    needs: build-kernel
     steps:
       - uses: actions/checkout@v4
-      - name: Check if erofs is enabled in kconfig
-        run: |
-          if grep -q "CONFIG_EROFS_FS=y" .config; then
-            echo "erofs is enabled in kconfig"
-          else
-            echo "erofs is not enabled in kconfig"
-            sudo echo 'CONFIG_EROFS_FS=y' >> .config
-            make olddefconfig
-          fi
       - name: Build erofs-utils
         run: |
           sudo apt -qq update
           sudo apt-get install -y libfuse-dev libselinux1-dev libzstd-dev
           curl -L https://github.com/lz4/lz4/archive/refs/tags/v1.9.4.tar.gz | tar -zxv
           make BUILD_SHARED=no -C lz4-1.9.4 && lz4libdir=$(pwd)/lz4-1.9.4/lib
-          git clone git://git.kernel.org/pub/scm/linux/kernel/git/xiang/erofs-utils.git -b experimental-tests
+          git clone git://git.kernel.org/pub/scm/linux/kernel/git/xiang/erofs-utils.git -b experimental
           cd erofs-utils
           mkdir output
           ./autogen.sh && ./configure --enable-debug --enable-werror --enable-fuse --with-selinux --with-libzstd \
               --disable-multithreading \
               --prefix=$(pwd)/output \
               --with-lz4-incdir=${lz4libdir} --with-lz4-libdir=${lz4libdir} && \
-              sudo make check && make install
-        timeout-minutes: 10
-      - name: Upload results if build failed
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: results-output
-          path: |
-            erofs-utils/tests/results/erofs
+              make && make install
       - name: Upload erofs-utils
         uses: actions/upload-artifact@v4
         with:
@@ -89,28 +75,61 @@ jobs:
           path: |
             erofs-utils/output
 
-  run-stress-test:
+  build-rootfs:
     runs-on: ubuntu-22.04
     needs: build-erofs-utils
     steps:
+      - uses: actions/checkout@v4
+      - name: Cache rootfs images
+        id: cache-rootfs
+        uses: actions/cache@v4
+        with:
+          path: |
+            rootfs_4k.erofs.img
+          key: genrootfs-${{hashFiles('.github', 'kbuild-overlay', 'genrootfs.sh')}}
+      - name: Download erofs-utils prebuilts
+        if: steps.cache-rootfs.outputs.cache-hit != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: erofs-utils
+      - name: Generate rootfs
+        if: steps.cache-rootfs.outputs.cache-hit != 'true'
+        run: |
+          chmod +x bin/mkfs.erofs bin/fsck.erofs
+          sudo apt update -y
+          sudo ./genrootfs.sh rootfs_4k.erofs.img
+
+  qemu-basic-smoking:
+    runs-on: ubuntu-22.04
+    needs: [build-kernel, build-rootfs, build-erofs-utils]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache rootfs images
+        id: cache-rootfs
+        uses: actions/cache@v4
+        with:
+          path: |
+            rootfs_4k.erofs.img
+          key: genrootfs-${{hashFiles('.github', 'kbuild-overlay', 'genrootfs.sh')}}
       - name: Download erofs-utils prebuilts
         uses: actions/download-artifact@v4
         with:
           name: erofs-utils
-      - name: Make erofs file image
+      - name: Download bzImage
+        uses: actions/download-artifact@v4
+        with:
+          name: erofs-bzImage
+      - name: Test with QEMU
         run: |
-          sudo apt -qq update
-          sudo apt-get install -y libfuse2
-          mkdir silesia out
-          wget -O silesia.zip https://mattmahoney.net/dc/silesia.zip
-          unzip silesia.zip -d silesia
-          chmod +x bin/mkfs.erofs bin/erofsfuse
-          bin/mkfs.erofs -C4096 silesia.erofs.img silesia 
-          bin/erofsfuse silesia.erofs.img out
-      - name: Run stress test
-        run: |
-          sudo apt-get install gcc
-          git clone https://github.com/erofs/erofsstress.git
-          cd erofsstress
-          gcc stress.c -o stress
-          ./stress -l100 -p2 ../silesia
+          sudo apt update -y
+          sudo apt install -y qemu-kvm
+          sudo adduser "${USER}" kvm
+          chmod +x bin/mkfs.erofs bin/fsck.erofs
+          ./qemu-basic-test bzImage rootfs_4k.erofs.img
+      - name: Upload results if the test fails
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: qemu-basic-tests-results
+          path: |
+            erofs-utils/tests/results/erofs
