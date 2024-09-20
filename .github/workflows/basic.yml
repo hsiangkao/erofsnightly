@@ -8,6 +8,7 @@ defaults:
     shell: bash
 
 jobs:     
+  
   build-erofs-utils:
     runs-on: ubuntu-22.04
     steps:
@@ -17,7 +18,8 @@ jobs:
           if grep -q "CONFIG_EROFS_FS=y" .config; then
             echo "erofs is enabled in kconfig"
           else
-            echo 'CONFIG_EROFS_FS=y' >> .config
+            echo "erofs is not enabled in kconfig"
+            sudo echo 'CONFIG_EROFS_FS=y' >> .config
             make olddefconfig
           fi
       - name: Build erofs-utils
